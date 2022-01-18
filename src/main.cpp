@@ -7,6 +7,7 @@
 #include <curlpp/Exception.hpp>
 #include <curlpp/Infos.hpp>
 #include <fstream>
+#include <getopt.h>
 
 static inline void ltrim(std::string &s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
@@ -43,34 +44,47 @@ static inline std::string trim_copy(std::string s) {
     return s;
 }
 
+void print_help(char *appname){
+    std::cerr << "Usage: " << std::filesystem::path(appname).filename().string() << " make FILE HASHFILE\n";
+    std::cerr << "Usage: " << std::filesystem::path(appname).filename().string() << " check FILE HASHFILE\n";
+    std::cerr << "Usage: " << std::filesystem::path(appname).filename().string() << " fix FILE HASHFILE URL\n";
+}
+
 int main(int argc, char *argv[]){
-    if(argc<3) {
-        std::cout << "Usage: " << std::filesystem::path(argv[0]).filename().string() << " [make|check|fix] FILE HASHFILE [URL]\n";
+    if(argc<4) {
+        print_help(argv[0]);
         return EXIT_FAILURE;
     }
     std::string command(argv[1]);
-	if(command == "make"){
-		std::string path(argv[2]);
-		std::cout << "Path: " << path << '\n';
-		ChunkedHashTable HT(path, 4096);
+    std::transform(command.begin(), command.end(), command.begin(),[](unsigned char c){ return std::tolower(c); });
+
+    std::string path(argv[2]);
+    if(!std::filesystem::is_regular_file(path)){
+        std::cerr << "File path is not valid\n";
+        return EXIT_FAILURE;
+    }
+    std::string hashfile(argv[3]);
+    ChunkedHashTable HT(path, 4096);
+
+    if(command == "make"){
 		HT.save(argv[3]);
+        std::cout << "Hash File saved: " << argv[3] << '\n';
 	}else if(command == "check"){
-		std::string path(argv[2]);
-		ChunkedHashTable HT(path, 4096);
-		auto res = HT.check(argv[3]);
+		auto res = HT.check(hashfile);
         std::cout << "Different Chunks:\n";
-        if(!res.empty())
+        if(res.empty())
             std::cout << "None!\n";
         else
 		    for(auto item: res)
 			    std::cout << item << '\n';
     }else if(command == "fix"){
-        std::string path(argv[2]);
-        std::string hashfile(argv[3]);
+        if(argc!=5) {
+            print_help(argv[0]);
+            return EXIT_FAILURE;
+        }
         std::string url(argv[4]);
 
-        ChunkedHashTable HT(path, 4096);
-        auto res = HT.check(argv[3]);
+        auto res = HT.check(hashfile);
         if(!res.empty())
             std::cout << "No corruption!\n";
         else {
